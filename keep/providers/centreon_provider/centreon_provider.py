@@ -67,6 +67,8 @@ class CentreonProvider(BaseProvider):
         "PENDING": AlertSeverity.INFO,
     }
 
+    PAGE_SIZE = 100
+
     def __init__(
         self, context_manager: ContextManager, provider_id: str, config: ProviderConfig
     ):
@@ -82,6 +84,40 @@ class CentreonProvider(BaseProvider):
         self.authentication_config = CentreonProviderAuthConfig(
             **self.config.authentication
         )
+
+    def __fetch_paginated_data(self, object_name: str) -> list[dict]:
+        """Fetch all pages for a given Centreon realtime object."""
+        results = []
+        page = 1
+        while True:
+            params = (
+                f"object={object_name}&action=list&limit={self.PAGE_SIZE}&page={page}"
+            )
+            url = self.__get_url(params)
+            response = requests.get(url, headers=self.__get_headers())
+            if not response.ok:
+                self.logger.error(
+                    "Failed to fetch %s page %s from Centreon: %s",
+                    object_name,
+                    page,
+                    response.text,
+                )
+                raise ProviderException(
+                    f"Failed to fetch {object_name} data from Centreon"
+                )
+
+            page_data = response.json()
+            if not isinstance(page_data, list):
+                break
+
+            results.extend(page_data)
+
+            if len(page_data) < self.PAGE_SIZE:
+                break
+
+            page += 1
+
+        return results
 
     def __get_url(self, params: str):
         url = self.authentication_config.host_url + "/centreon/api/index.php?" + params
@@ -117,32 +153,25 @@ class CentreonProvider(BaseProvider):
 
     def __get_host_status(self) -> list[AlertDto]:
         try:
-            url = self.__get_url("object=centreon_realtime_hosts&action=list")
-            response = requests.get(url, headers=self.__get_headers())
-
-            if not response.ok:
-                self.logger.error(
-                    "Failed to get host status from Centreon: %s", response.json()
-                )
-                raise ProviderException("Failed to get host status from Centreon")
+            hosts = self.__fetch_paginated_data("centreon_realtime_hosts")
 
             return [
                 AlertDto(
                     id=host["id"],
                     name=host["name"],
-                    address=host["address"],
-                    description=host["output"],
-                    status=host["state"],
-                    severity=host["output"].split()[0],
-                    instance_name=host["instance_name"],
-                    acknowledged=host["acknowledged"],
-                    max_check_attempts=host["max_check_attempts"],
+                    address=host.get("address"),
+                    description=host.get("output"),
+                    status=host.get("state"),
+                    severity=host.get("output", "").split()[0],
+                    instance_name=host.get("instance_name"),
+                    acknowledged=host.get("acknowledged"),
+                    max_check_attempts=host.get("max_check_attempts"),
                     lastReceived=datetime.datetime.fromtimestamp(
-                        host["last_check"]
+                        host.get("last_check", 0)
                     ).isoformat(),
                     source=["centreon"],
                 )
-                for host in response.json()
+                for host in hosts
             ]
 
         except Exception as e:
@@ -153,31 +182,24 @@ class CentreonProvider(BaseProvider):
 
     def __get_service_status(self) -> list[AlertDto]:
         try:
-            url = self.__get_url("object=centreon_realtime_services&action=list")
-            response = requests.get(url, headers=self.__get_headers())
-
-            if not response.ok:
-                self.logger.error(
-                    "Failed to get service status from Centreon: %s", response.json()
-                )
-                raise ProviderException("Failed to get service status from Centreon")
+            services = self.__fetch_paginated_data("centreon_realtime_services")
 
             return [
                 AlertDto(
-                    id=service["service_id"],
-                    host_id=service["host_id"],
-                    name=service["name"],
-                    description=service["description"],
-                    status=service["state"],
-                    severity=service["output"].split(":")[0],
-                    acknowledged=service["acknowledged"],
-                    max_check_attempts=service["max_check_attempts"],
+                    id=service.get("service_id"),
+                    host_id=service.get("host_id"),
+                    name=service.get("name"),
+                    description=service.get("description"),
+                    status=service.get("state"),
+                    severity=service.get("output", "").split(":")[0],
+                    acknowledged=service.get("acknowledged"),
+                    max_check_attempts=service.get("max_check_attempts"),
                     lastReceived=datetime.datetime.fromtimestamp(
-                        service["last_check"]
+                        service.get("last_check", 0)
                     ).isoformat(),
                     source=["centreon"],
                 )
-                for service in response.json()
+                for service in services
             ]
 
         except Exception as e:
