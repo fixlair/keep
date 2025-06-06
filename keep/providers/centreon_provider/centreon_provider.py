@@ -13,6 +13,7 @@ from keep.contextmanager.contextmanager import ContextManager
 from keep.exceptions.provider_exception import ProviderException
 from keep.providers.base.base_provider import BaseProvider
 from keep.providers.models.provider_config import ProviderConfig, ProviderScope
+from keep.providers.models.provider_method import ProviderMethod
 
 
 @pydantic.dataclasses.dataclass
@@ -46,6 +47,15 @@ class CentreonProvider(BaseProvider):
     PROVIDER_CATEGORY = ["Monitoring"]
     PROVIDER_SCOPES = [
         ProviderScope(name="authenticated", description="User is authenticated"),
+    ]
+
+    PROVIDER_METHODS = [
+        ProviderMethod(
+            name="Acknowledge alert",
+            func_name="acknowledge_alert",
+            scopes=["authenticated"],
+            type="action",
+        )
     ]
 
     """
@@ -184,6 +194,43 @@ class CentreonProvider(BaseProvider):
             self.logger.error("Error getting service status from Centreon: %s", e)
             raise ProviderException(
                 f"Error getting service status from Centreon: {e}"
+            ) from e
+
+    def acknowledge_alert(
+        self, host_id: str, service_id: str | None = None, comment: str | None = None
+    ) -> bool:
+        """Acknowledge a host or service alert in Centreon."""
+
+        try:
+            if service_id:
+                params = "object=centreon_realtime_services&action=acknowledge"
+                payload = {"host_id": host_id, "service_id": service_id, "comment": comment}
+            else:
+                params = "object=centreon_realtime_hosts&action=acknowledge"
+                payload = {"host_id": host_id, "comment": comment}
+
+            response = requests.post(
+                self.__get_url(params),
+                headers=self.__get_headers(),
+                json=payload,
+            )
+
+            if not response.ok:
+                self.logger.error(
+                    "Failed to acknowledge alert in Centreon: %s", response.text
+                )
+                raise ProviderException("Failed to acknowledge alert in Centreon")
+
+            self.logger.info(
+                "Acknowledged alert in Centreon",
+                extra={"host_id": host_id, "service_id": service_id},
+            )
+
+            return True
+        except Exception as e:
+            self.logger.error("Error acknowledging alert in Centreon: %s", e)
+            raise ProviderException(
+                f"Error acknowledging alert in Centreon: {e}"
             ) from e
 
     def _get_alerts(self) -> list[AlertDto]:
