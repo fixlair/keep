@@ -74,7 +74,7 @@ class TestCentreonProvider(unittest.TestCase):
 
         with patch("keep.providers.centreon_provider.centreon_provider.requests.get") as mock_get:
             mock_get.side_effect = [MockResp(first_page), MockResp(second_page)]
-            data = provider._CentreonProvider__get_paginated_data("centreon_realtime_hosts")
+            data = provider._CentreonProvider__get_paginated_data("monitoring/hosts")
             self.assertEqual(len(data), 60)
 
 

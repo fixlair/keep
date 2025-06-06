@@ -94,14 +94,15 @@ class CentreonProvider(BaseProvider):
             **self.config.authentication
         )
 
-    def __get_url(self, params: str):
-        url = self.authentication_config.host_url + "/centreon/api/index.php?" + params
-        return url
+    def __get_url(self, path: str):
+        """Build API V2 url"""
+        base = self.authentication_config.host_url.rstrip("/") + "/centreon/api/latest/"
+        return base + path.lstrip("/")
 
     def __get_headers(self):
         return {
             "Content-Type": "application/json",
-            "centreon-auth-token": self.authentication_config.api_token,
+            "Authorization": f"Bearer {self.authentication_config.api_token}",
         }
 
     @staticmethod
@@ -149,30 +150,33 @@ class CentreonProvider(BaseProvider):
             source=["centreon"],
         )
 
-    def __get_paginated_data(self, object_name: str) -> list[dict]:
-        """Retrieve all pages for the given object."""
+    def __get_paginated_data(self, path: str) -> list[dict]:
+        """Retrieve all pages for the given API path."""
         page = 1
         limit = 50
-        results = []
+        results: list[dict] = []
 
         while True:
-            params = f"object={object_name}&action=list&page={page}&limit={limit}"
-            url = self.__get_url(params)
+            url = self.__get_url(f"{path}?page={page}&limit={limit}")
             response = requests.get(url, headers=self.__get_headers())
 
             if not response.ok:
                 self.logger.error(
-                    "Failed to get %s from Centreon: %s", object_name, response.text
+                    "Failed to get %s from Centreon: %s", path, response.text
                 )
-                raise ProviderException(f"Failed to get {object_name} from Centreon")
+                raise ProviderException(f"Failed to get {path} from Centreon")
 
             data = response.json()
 
             # Some Centreon deployments wrap the results in a "result" or
-            # "data" key. Handle these cases transparently so pagination works
-            # regardless of the exact API version.
+            # "data" key. Handle these cases transparently.
             if isinstance(data, dict):
-                data = data.get("result") or data.get("data") or data.get(object_name) or []
+                data = (
+                    data.get("result")
+                    or data.get("data")
+                    or data.get(path.split("/")[-1])
+                    or []
+                )
 
             if not data:
                 break
@@ -192,7 +196,7 @@ class CentreonProvider(BaseProvider):
         """
         try:
             response = requests.get(
-                self.__get_url("object=centreon_realtime_hosts&action=list"),
+                self.__get_url("monitoring/hosts?page=1&limit=1"),
                 headers=self.__get_headers(),
             )
             if response.ok:
@@ -210,7 +214,7 @@ class CentreonProvider(BaseProvider):
 
     def __get_host_status(self) -> list[AlertDto]:
         try:
-            hosts = self.__get_paginated_data("centreon_realtime_hosts")
+            hosts = self.__get_paginated_data("monitoring/hosts")
 
             return [self._format_host_alert(host, self) for host in hosts]
 
@@ -222,7 +226,7 @@ class CentreonProvider(BaseProvider):
 
     def __get_service_status(self) -> list[AlertDto]:
         try:
-            services = self.__get_paginated_data("centreon_realtime_services")
+            services = self.__get_paginated_data("monitoring/services")
 
             return [self._format_service_alert(service, self) for service in services]
 
@@ -238,19 +242,21 @@ class CentreonProvider(BaseProvider):
         """Acknowledge a host or service alert in Centreon."""
 
         try:
+            payload = {
+                "author": "keep",
+                "comment": comment,
+                "notify": True,
+                "persistent": True,
+                "sticky": True,
+            }
+
             if service_id:
-                params = "object=centreon_realtime_services&action=acknowledge"
-                payload = {
-                    "host_id": host_id,
-                    "service_id": service_id,
-                    "comment": comment,
-                }
+                path = f"monitoring/services/{service_id}/acknowledgements"
             else:
-                params = "object=centreon_realtime_hosts&action=acknowledge"
-                payload = {"host_id": host_id, "comment": comment}
+                path = f"monitoring/hosts/{host_id}/acknowledgements"
 
             response = requests.post(
-                self.__get_url(params),
+                self.__get_url(path),
                 headers=self.__get_headers(),
                 json=payload,
             )
