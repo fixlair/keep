@@ -4,8 +4,8 @@ Centreon is a class that provides a set of methods to interact with the Centreon
 
 import dataclasses
 import datetime
-
 import typing
+
 import pydantic
 import requests
 
@@ -104,6 +104,51 @@ class CentreonProvider(BaseProvider):
             "centreon-auth-token": self.authentication_config.api_token,
         }
 
+    @staticmethod
+    def _format_host_alert(
+        host: dict, provider_instance: "BaseProvider" | None = None
+    ) -> AlertDto:
+        return AlertDto(
+            id=host["id"],
+            name=host["name"],
+            address=host["address"],
+            description=host["output"],
+            status=CentreonProvider.STATUS_MAP.get(host["state"], AlertStatus.FIRING),
+            severity=CentreonProvider.SEVERITY_MAP.get(
+                host["output"].split()[0], AlertSeverity.INFO
+            ),
+            instance_name=host["instance_name"],
+            acknowledged=host["acknowledged"],
+            max_check_attempts=host["max_check_attempts"],
+            lastReceived=datetime.datetime.fromtimestamp(
+                host["last_check"]
+            ).isoformat(),
+            source=["centreon"],
+        )
+
+    @staticmethod
+    def _format_service_alert(
+        service: dict, provider_instance: "BaseProvider" | None = None
+    ) -> AlertDto:
+        return AlertDto(
+            id=service["service_id"],
+            host_id=service["host_id"],
+            name=service["name"],
+            description=service["description"],
+            status=CentreonProvider.STATUS_MAP.get(
+                service["state"], AlertStatus.FIRING
+            ),
+            severity=CentreonProvider.SEVERITY_MAP.get(
+                service["output"].split(":")[0], AlertSeverity.INFO
+            ),
+            acknowledged=service["acknowledged"],
+            max_check_attempts=service["max_check_attempts"],
+            lastReceived=datetime.datetime.fromtimestamp(
+                service["last_check"]
+            ).isoformat(),
+            source=["centreon"],
+        )
+
     def __get_paginated_data(self, object_name: str) -> list[dict]:
         """Retrieve all pages for the given object."""
         page = 1
@@ -160,24 +205,7 @@ class CentreonProvider(BaseProvider):
         try:
             hosts = self.__get_paginated_data("centreon_realtime_hosts")
 
-            return [
-                AlertDto(
-                    id=host["id"],
-                    name=host["name"],
-                    address=host["address"],
-                    description=host["output"],
-                    status=host["state"],
-                    severity=host["output"].split()[0],
-                    instance_name=host["instance_name"],
-                    acknowledged=host["acknowledged"],
-                    max_check_attempts=host["max_check_attempts"],
-                    lastReceived=datetime.datetime.fromtimestamp(
-                        host["last_check"]
-                    ).isoformat(),
-                    source=["centreon"],
-                )
-                for host in hosts
-            ]
+            return [self._format_host_alert(host, self) for host in hosts]
 
         except Exception as e:
             self.logger.error("Error getting host status from Centreon: %s", e)
@@ -189,23 +217,7 @@ class CentreonProvider(BaseProvider):
         try:
             services = self.__get_paginated_data("centreon_realtime_services")
 
-            return [
-                AlertDto(
-                    id=service["service_id"],
-                    host_id=service["host_id"],
-                    name=service["name"],
-                    description=service["description"],
-                    status=service["state"],
-                    severity=service["output"].split(":")[0],
-                    acknowledged=service["acknowledged"],
-                    max_check_attempts=service["max_check_attempts"],
-                    lastReceived=datetime.datetime.fromtimestamp(
-                        service["last_check"]
-                    ).isoformat(),
-                    source=["centreon"],
-                )
-                for service in services
-            ]
+            return [self._format_service_alert(service, self) for service in services]
 
         except Exception as e:
             self.logger.error("Error getting service status from Centreon: %s", e)
