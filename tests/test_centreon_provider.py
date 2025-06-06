@@ -77,6 +77,34 @@ class TestCentreonProvider(unittest.TestCase):
             data = provider._CentreonProvider__get_paginated_data("monitoring/hosts")
             self.assertEqual(len(data), 60)
 
+    def test_acknowledge_alert_service_url(self):
+        from unittest.mock import patch
+        from keep.contextmanager.contextmanager import ContextManager
+        from keep.providers.models.provider_config import ProviderConfig
+
+        context_manager = ContextManager(tenant_id="test")
+        provider = CentreonProvider(
+            context_manager,
+            provider_id="centreon",
+            config=ProviderConfig(
+                description="centreon",
+                authentication={"host_url": "http://localhost", "api_token": "t"},
+            ),
+        )
+
+        with patch("keep.providers.centreon_provider.centreon_provider.requests.post") as mock_post:
+            mock_post.return_value.ok = True
+            mock_post.return_value.text = ""
+
+            provider.acknowledge_alert(host_id="1", service_id="2", comment="c")
+            called_url = mock_post.call_args[0][0]
+
+            expected_url = (
+                "http://localhost/centreon/api/latest/"
+                "monitoring/hosts/1/services/2/acknowledgements"
+            )
+            self.assertEqual(called_url, expected_url)
+
 
 if __name__ == "__main__":
     unittest.main()
