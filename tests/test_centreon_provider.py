@@ -63,14 +63,20 @@ class TestCentreonProvider(unittest.TestCase):
             def json(self):
                 return self._data
 
-        first_page = [
-            {"id": str(i), "address": "", "output": "", "state": 0, "instance_name": "i", "acknowledged": False, "max_check_attempts": 1, "last_check": 0}
-            for i in range(50)
-        ]
-        second_page = [
-            {"id": str(50 + i), "address": "", "output": "", "state": 0, "instance_name": "i", "acknowledged": False, "max_check_attempts": 1, "last_check": 0}
-            for i in range(10)
-        ]
+        first_page = {
+            "meta": {"page": 1, "limit": 50, "total": 60},
+            "result": [
+                {"id": str(i), "address": "", "output": "", "state": 0, "instance_name": "i", "acknowledged": False, "max_check_attempts": 1, "last_check": 0}
+                for i in range(50)
+            ],
+        }
+        second_page = {
+            "meta": {"page": 2, "limit": 50, "total": 60},
+            "result": [
+                {"id": str(50 + i), "address": "", "output": "", "state": 0, "instance_name": "i", "acknowledged": False, "max_check_attempts": 1, "last_check": 0}
+                for i in range(10)
+            ],
+        }
 
         with patch("keep.providers.centreon_provider.centreon_provider.requests.get") as mock_get:
             mock_get.side_effect = [MockResp(first_page), MockResp(second_page)]

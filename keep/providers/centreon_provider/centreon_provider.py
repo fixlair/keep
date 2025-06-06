@@ -168,9 +168,12 @@ class CentreonProvider(BaseProvider):
 
             data = response.json()
 
+            meta: dict | None = None
+
             # Some Centreon deployments wrap the results in a "result" or
-            # "data" key. Handle these cases transparently.
+            # "data" key as well as providing a "meta" key for pagination.
             if isinstance(data, dict):
+                meta = data.get("meta")
                 data = (
                     data.get("result")
                     or data.get("data")
@@ -183,10 +186,20 @@ class CentreonProvider(BaseProvider):
 
             results.extend(data)
 
-            if len(data) < limit:
-                break
-
-            page += 1
+            # When the API returns pagination information use it to decide
+            # whether additional requests are required. Fallback to the
+            # previous behaviour if no meta is supplied.
+            if meta:
+                page = meta.get("page", page)
+                limit = meta.get("limit", limit)
+                total = meta.get("total")
+                if total is not None and page * limit >= total:
+                    break
+                page += 1
+            else:
+                if len(data) < limit:
+                    break
+                page += 1
 
         return results
 
