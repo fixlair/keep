@@ -5,6 +5,7 @@ Centreon is a class that provides a set of methods to interact with the Centreon
 import dataclasses
 import datetime
 
+import typing
 import pydantic
 import requests
 
@@ -252,6 +253,26 @@ class CentreonProvider(BaseProvider):
             raise ProviderException(
                 f"Error acknowledging alert in Centreon: {e}"
             ) from e
+
+    def _notify(
+        self,
+        action: typing.Literal["acknowledge_alert"] = "acknowledge_alert",
+        host_id: str = "",
+        service_id: str | None = None,
+        comment: str | None = None,
+        **kwargs: dict,
+    ) -> bool:
+        """Run Centreon actions.
+
+        Currently supports acknowledging alerts via ``acknowledge_alert``.
+        """
+
+        if action == "acknowledge_alert":
+            return self.acknowledge_alert(
+                host_id=host_id, service_id=service_id, comment=comment
+            )
+
+        raise NotImplementedError(f"Action {action} is not implemented")
 
     def _get_alerts(self) -> list[AlertDto]:
         alerts = []
