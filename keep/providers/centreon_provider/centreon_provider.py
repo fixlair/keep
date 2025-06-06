@@ -251,7 +251,9 @@ class CentreonProvider(BaseProvider):
             }
 
             if service_id:
-                path = f"monitoring/services/{service_id}/acknowledgements"
+                path = (
+                    f"monitoring/hosts/{host_id}/services/{service_id}/acknowledgements"
+                )
             else:
                 path = f"monitoring/hosts/{host_id}/acknowledgements"
 
