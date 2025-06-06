@@ -111,6 +111,35 @@ class TestCentreonProvider(unittest.TestCase):
             )
             self.assertEqual(called_url, expected_url)
 
+    def test_authenticate_with_username_password(self):
+        from unittest.mock import patch
+        from keep.contextmanager.contextmanager import ContextManager
+        from keep.providers.models.provider_config import ProviderConfig
+
+        context_manager = ContextManager(tenant_id="test")
+
+        with patch(
+            "keep.providers.centreon_provider.centreon_provider.requests.post"
+        ) as mock_post:
+            mock_post.return_value.ok = True
+            mock_post.return_value.json.return_value = {"auth_token": "tok"}
+
+            provider = CentreonProvider(
+                context_manager,
+                provider_id="centreon",
+                config=ProviderConfig(
+                    description="centreon",
+                    authentication={
+                        "host_url": "http://localhost",
+                        "username": "u",
+                        "password": "p",
+                    },
+                ),
+            )
+
+            headers = provider._CentreonProvider__get_headers()
+            self.assertEqual(headers.get("X-AUTH-TOKEN"), "tok")
+
 
 if __name__ == "__main__":
     unittest.main()

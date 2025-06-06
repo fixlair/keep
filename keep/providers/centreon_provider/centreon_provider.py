@@ -32,10 +32,28 @@ class CentreonProviderAuthConfig:
         },
     )
 
-    api_token: str = dataclasses.field(
+    api_token: str | None = dataclasses.field(
         metadata={
-            "required": True,
+            "required": False,
             "description": "Centreon API Token",
+            "sensitive": True,
+        },
+        default=None,
+    )
+
+    username: str | None = dataclasses.field(
+        metadata={
+            "required": False,
+            "description": "Centreon username",
+            "sensitive": False,
+        },
+        default=None,
+    )
+
+    password: str | None = dataclasses.field(
+        metadata={
+            "required": False,
+            "description": "Centreon password",
             "sensitive": True,
         },
         default=None,
@@ -81,6 +99,7 @@ class CentreonProvider(BaseProvider):
     def __init__(
         self, context_manager: ContextManager, provider_id: str, config: ProviderConfig
     ):
+        self._use_x_auth = False
         super().__init__(context_manager, provider_id, config)
 
     def dispose(self):
@@ -93,6 +112,23 @@ class CentreonProvider(BaseProvider):
         self.authentication_config = CentreonProviderAuthConfig(
             **self.config.authentication
         )
+
+        if (
+            self.authentication_config.api_token is None
+            and (
+                self.authentication_config.username is None
+                or self.authentication_config.password is None
+            )
+        ):
+            raise ProviderException(
+                "Either api_token or username/password must be provided"
+            )
+
+        if (
+            self.authentication_config.api_token is None
+            and self.authentication_config.username is not None
+        ):
+            self.__authenticate()
 
     def __get_url(self, path: str):
         """Build API V2 url.
@@ -110,11 +146,55 @@ class CentreonProvider(BaseProvider):
 
         return base + path.lstrip("/")
 
-    def __get_headers(self):
-        return {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.authentication_config.api_token}",
+    def __get_login_url(self) -> str:
+        host = self.authentication_config.host_url.rstrip("/")
+        if host.endswith("/centreon"):
+            base = host
+        else:
+            base = f"{host}/centreon"
+        return f"{base}/api/index.php?action=authenticate"
+
+    def __authenticate(self) -> None:
+        url = self.__get_login_url()
+        payload = {
+            "username": self.authentication_config.username,
+            "password": self.authentication_config.password,
         }
+        try:
+            response = requests.post(url, json=payload)
+            if not response.ok:
+                raise ProviderException(
+                    f"Failed to authenticate with Centreon: {response.status_code} {response.text}"
+                )
+            data = {}
+            try:
+                data = response.json()
+            except Exception:
+                pass
+            token = (
+                data.get("authToken")
+                or data.get("auth_token")
+                or data.get("security_token")
+                or data.get("token")
+            )
+            if not token:
+                token = response.text.strip().strip('"')
+            if not token:
+                raise ProviderException("Missing auth token in Centreon response")
+            self.authentication_config.api_token = token
+            self._use_x_auth = True
+        except Exception as e:
+            raise ProviderException(
+                f"Error authenticating with Centreon: {e}"
+            ) from e
+
+    def __get_headers(self):
+        headers = {"Content-Type": "application/json"}
+        if self._use_x_auth:
+            headers["X-AUTH-TOKEN"] = self.authentication_config.api_token
+        else:
+            headers["Authorization"] = f"Bearer {self.authentication_config.api_token}"
+        return headers
 
     @staticmethod
     def _format_host_alert(
