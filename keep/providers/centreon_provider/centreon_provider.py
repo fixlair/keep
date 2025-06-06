@@ -103,6 +103,36 @@ class CentreonProvider(BaseProvider):
             "centreon-auth-token": self.authentication_config.api_token,
         }
 
+    def __get_paginated_data(self, object_name: str) -> list[dict]:
+        """Retrieve all pages for the given object."""
+        page = 1
+        limit = 50
+        results = []
+
+        while True:
+            params = f"object={object_name}&action=list&page={page}&limit={limit}"
+            url = self.__get_url(params)
+            response = requests.get(url, headers=self.__get_headers())
+
+            if not response.ok:
+                self.logger.error(
+                    "Failed to get %s from Centreon: %s", object_name, response.text
+                )
+                raise ProviderException(f"Failed to get {object_name} from Centreon")
+
+            data = response.json()
+            if not data:
+                break
+
+            results.extend(data)
+
+            if len(data) < limit:
+                break
+
+            page += 1
+
+        return results
+
     def validate_scopes(self) -> dict[str, bool | str]:
         """
         Validate the scopes of the provider.
@@ -127,14 +157,7 @@ class CentreonProvider(BaseProvider):
 
     def __get_host_status(self) -> list[AlertDto]:
         try:
-            url = self.__get_url("object=centreon_realtime_hosts&action=list")
-            response = requests.get(url, headers=self.__get_headers())
-
-            if not response.ok:
-                self.logger.error(
-                    "Failed to get host status from Centreon: %s", response.json()
-                )
-                raise ProviderException("Failed to get host status from Centreon")
+            hosts = self.__get_paginated_data("centreon_realtime_hosts")
 
             return [
                 AlertDto(
@@ -152,7 +175,7 @@ class CentreonProvider(BaseProvider):
                     ).isoformat(),
                     source=["centreon"],
                 )
-                for host in response.json()
+                for host in hosts
             ]
 
         except Exception as e:
@@ -163,14 +186,7 @@ class CentreonProvider(BaseProvider):
 
     def __get_service_status(self) -> list[AlertDto]:
         try:
-            url = self.__get_url("object=centreon_realtime_services&action=list")
-            response = requests.get(url, headers=self.__get_headers())
-
-            if not response.ok:
-                self.logger.error(
-                    "Failed to get service status from Centreon: %s", response.json()
-                )
-                raise ProviderException("Failed to get service status from Centreon")
+            services = self.__get_paginated_data("centreon_realtime_services")
 
             return [
                 AlertDto(
@@ -187,7 +203,7 @@ class CentreonProvider(BaseProvider):
                     ).isoformat(),
                     source=["centreon"],
                 )
-                for service in response.json()
+                for service in services
             ]
 
         except Exception as e:
@@ -204,7 +220,11 @@ class CentreonProvider(BaseProvider):
         try:
             if service_id:
                 params = "object=centreon_realtime_services&action=acknowledge"
-                payload = {"host_id": host_id, "service_id": service_id, "comment": comment}
+                payload = {
+                    "host_id": host_id,
+                    "service_id": service_id,
+                    "comment": comment,
+                }
             else:
                 params = "object=centreon_realtime_hosts&action=acknowledge"
                 payload = {"host_id": host_id, "comment": comment}
