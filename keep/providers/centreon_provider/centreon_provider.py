@@ -167,6 +167,13 @@ class CentreonProvider(BaseProvider):
                 raise ProviderException(f"Failed to get {object_name} from Centreon")
 
             data = response.json()
+
+            # Some Centreon deployments wrap the results in a "result" or
+            # "data" key. Handle these cases transparently so pagination works
+            # regardless of the exact API version.
+            if isinstance(data, dict):
+                data = data.get("result") or data.get("data") or data.get(object_name) or []
+
             if not data:
                 break
 
