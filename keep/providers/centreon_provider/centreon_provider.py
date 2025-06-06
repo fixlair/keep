@@ -95,8 +95,19 @@ class CentreonProvider(BaseProvider):
         )
 
     def __get_url(self, path: str):
-        """Build API V2 url"""
-        base = self.authentication_config.host_url.rstrip("/") + "/centreon/api/latest/"
+        """Build API V2 url.
+
+        Historically ``host_url`` was expected without the ``/centreon`` suffix.
+        Some installations provide the API under ``https://host/centreon``. This
+        helper handles both configurations gracefully.
+        """
+
+        host = self.authentication_config.host_url.rstrip("/")
+        if host.endswith("/centreon"):
+            base = f"{host}/api/latest/"
+        else:
+            base = f"{host}/centreon/api/latest/"
+
         return base + path.lstrip("/")
 
     def __get_headers(self):
