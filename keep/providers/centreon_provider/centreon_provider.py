@@ -106,7 +106,7 @@ class CentreonProvider(BaseProvider):
 
     @staticmethod
     def _format_host_alert(
-        host: dict, provider_instance: "BaseProvider" | None = None
+        host: dict, provider_instance: BaseProvider | None = None
     ) -> AlertDto:
         return AlertDto(
             id=host["id"],
@@ -128,7 +128,7 @@ class CentreonProvider(BaseProvider):
 
     @staticmethod
     def _format_service_alert(
-        service: dict, provider_instance: "BaseProvider" | None = None
+        service: dict, provider_instance: BaseProvider | None = None
     ) -> AlertDto:
         return AlertDto(
             id=service["service_id"],
