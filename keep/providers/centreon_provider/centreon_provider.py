@@ -341,7 +341,10 @@ class CentreonProvider(BaseProvider):
             ) from e
 
     def acknowledge_alert(
-        self, host_id: str, service_id: str | None = None, comment: str | None = None
+        self,
+        host_id: str,
+        service_id: str = None,
+        comment: str = None,
     ) -> bool:
         """Acknowledge a host or service alert in Centreon."""
 
