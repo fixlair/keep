@@ -1,4 +1,3 @@
-import datetime
 import unittest
 
 from keep.api.models.alert import AlertSeverity, AlertStatus
@@ -40,6 +39,7 @@ class TestCentreonProvider(unittest.TestCase):
 
     def test_get_paginated_data(self):
         from unittest.mock import patch
+
         from keep.contextmanager.contextmanager import ContextManager
         from keep.providers.models.provider_config import ProviderConfig
 
@@ -76,25 +76,46 @@ class TestCentreonProvider(unittest.TestCase):
         first_page = {
             "meta": {"page": 1, "limit": 50, "total": 60},
             "result": [
-                {"id": str(i), "address": "", "output": "", "state": 0, "instance_name": "i", "acknowledged": False, "max_check_attempts": 1, "last_check": 0}
+                {
+                    "id": str(i),
+                    "address": "",
+                    "output": "",
+                    "state": 0,
+                    "instance_name": "i",
+                    "acknowledged": False,
+                    "max_check_attempts": 1,
+                    "last_check": 0,
+                }
                 for i in range(50)
             ],
         }
         second_page = {
             "meta": {"page": 2, "limit": 50, "total": 60},
             "result": [
-                {"id": str(50 + i), "address": "", "output": "", "state": 0, "instance_name": "i", "acknowledged": False, "max_check_attempts": 1, "last_check": 0}
+                {
+                    "id": str(50 + i),
+                    "address": "",
+                    "output": "",
+                    "state": 0,
+                    "instance_name": "i",
+                    "acknowledged": False,
+                    "max_check_attempts": 1,
+                    "last_check": 0,
+                }
                 for i in range(10)
             ],
         }
 
-        with patch("keep.providers.centreon_provider.centreon_provider.requests.get") as mock_get:
+        with patch(
+            "keep.providers.centreon_provider.centreon_provider.requests.get"
+        ) as mock_get:
             mock_get.side_effect = [MockResp(first_page), MockResp(second_page)]
             data = provider._CentreonProvider__get_paginated_data("monitoring/hosts")
             self.assertEqual(len(data), 60)
 
     def test_acknowledge_alert_service_url(self):
         from unittest.mock import patch
+
         from keep.contextmanager.contextmanager import ContextManager
         from keep.providers.models.provider_config import ProviderConfig
 
@@ -118,7 +139,9 @@ class TestCentreonProvider(unittest.TestCase):
                 ),
             )
 
-        with patch("keep.providers.centreon_provider.centreon_provider.requests.post") as mock_post:
+        with patch(
+            "keep.providers.centreon_provider.centreon_provider.requests.post"
+        ) as mock_post:
             mock_post.return_value.ok = True
             mock_post.return_value.text = ""
 
@@ -133,6 +156,7 @@ class TestCentreonProvider(unittest.TestCase):
 
     def test_acknowledge_alert_payload(self):
         from unittest.mock import patch
+
         from keep.contextmanager.contextmanager import ContextManager
         from keep.providers.models.provider_config import ProviderConfig
 
@@ -166,7 +190,6 @@ class TestCentreonProvider(unittest.TestCase):
             called_payload = mock_post.call_args.kwargs["json"]
 
             expected_payload = {
-                "author": "keep",
                 "comment": "Acknowledged via Keep",
                 "is_notify_contacts": False,
                 "is_persistent_comment": True,
@@ -177,6 +200,7 @@ class TestCentreonProvider(unittest.TestCase):
 
     def test_authenticate_with_username_password(self):
         from unittest.mock import patch
+
         from keep.contextmanager.contextmanager import ContextManager
         from keep.providers.models.provider_config import ProviderConfig
 
@@ -207,4 +231,3 @@ class TestCentreonProvider(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

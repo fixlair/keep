@@ -196,9 +196,7 @@ class CentreonProvider(BaseProvider):
                 raise ProviderException("Missing auth token in Centreon response")
             self._auth_token = token
         except Exception as e:
-            raise ProviderException(
-                f"Error authenticating with Centreon: {e}"
-            ) from e
+            raise ProviderException(f"Error authenticating with Centreon: {e}") from e
 
     def __get_headers(self):
         headers = {"Content-Type": "application/json"}
@@ -360,7 +358,6 @@ class CentreonProvider(BaseProvider):
 
         try:
             payload = {
-                "author": "keep",
                 "comment": comment or "Acknowledged via Keep",
                 "is_notify_contacts": False,
                 "is_persistent_comment": True,
