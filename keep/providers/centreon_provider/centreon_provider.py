@@ -354,17 +354,17 @@ class CentreonProvider(BaseProvider):
         self,
         host_id: str,
         service_id: str = None,
-        comment: str = None,
+        comment: str | None = None,
     ) -> bool:
         """Acknowledge a host or service alert in Centreon."""
 
         try:
             payload = {
                 "author": "keep",
-                "comment": comment,
-                "notify": True,
-                "persistent": True,
-                "sticky": True,
+                "comment": comment or "Acknowledged via Keep",
+                "is_notify_contacts": False,
+                "is_persistent_comment": True,
+                "is_sticky": True,
             }
 
             if service_id:
