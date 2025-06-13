@@ -44,14 +44,24 @@ class TestCentreonProvider(unittest.TestCase):
         from keep.providers.models.provider_config import ProviderConfig
 
         context_manager = ContextManager(tenant_id="test")
-        provider = CentreonProvider(
-            context_manager,
-            provider_id="centreon",
-            config=ProviderConfig(
-                description="centreon",
-                authentication={"host_url": "http://localhost", "api_token": "t"},
-            ),
-        )
+        with patch(
+            "keep.providers.centreon_provider.centreon_provider.requests.post"
+        ) as mock_post:
+            mock_post.return_value.ok = True
+            mock_post.return_value.json.return_value = {"auth_token": "tok"}
+
+            provider = CentreonProvider(
+                context_manager,
+                provider_id="centreon",
+                config=ProviderConfig(
+                    description="centreon",
+                    authentication={
+                        "host_url": "http://localhost",
+                        "username": "u",
+                        "password": "p",
+                    },
+                ),
+            )
 
         # Mock paginated responses: first page 50 items, second page 10 items
         class MockResp:
@@ -89,14 +99,24 @@ class TestCentreonProvider(unittest.TestCase):
         from keep.providers.models.provider_config import ProviderConfig
 
         context_manager = ContextManager(tenant_id="test")
-        provider = CentreonProvider(
-            context_manager,
-            provider_id="centreon",
-            config=ProviderConfig(
-                description="centreon",
-                authentication={"host_url": "http://localhost", "api_token": "t"},
-            ),
-        )
+        with patch(
+            "keep.providers.centreon_provider.centreon_provider.requests.post"
+        ) as mock_post:
+            mock_post.return_value.ok = True
+            mock_post.return_value.json.return_value = {"auth_token": "tok"}
+
+            provider = CentreonProvider(
+                context_manager,
+                provider_id="centreon",
+                config=ProviderConfig(
+                    description="centreon",
+                    authentication={
+                        "host_url": "http://localhost",
+                        "username": "u",
+                        "password": "p",
+                    },
+                ),
+            )
 
         with patch("keep.providers.centreon_provider.centreon_provider.requests.post") as mock_post:
             mock_post.return_value.ok = True
