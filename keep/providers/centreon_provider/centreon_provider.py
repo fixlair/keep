@@ -32,31 +32,20 @@ class CentreonProviderAuthConfig:
         },
     )
 
-    api_token: str | None = dataclasses.field(
+    username: str = dataclasses.field(
         metadata={
-            "required": False,
-            "description": "Centreon API Token",
-            "sensitive": True,
-        },
-        default=None,
-    )
-
-    username: str | None = dataclasses.field(
-        metadata={
-            "required": False,
+            "required": True,
             "description": "Centreon username",
             "sensitive": False,
         },
-        default=None,
     )
 
-    password: str | None = dataclasses.field(
+    password: str = dataclasses.field(
         metadata={
-            "required": False,
+            "required": True,
             "description": "Centreon password",
             "sensitive": True,
         },
-        default=None,
     )
 
 
@@ -99,7 +88,7 @@ class CentreonProvider(BaseProvider):
     def __init__(
         self, context_manager: ContextManager, provider_id: str, config: ProviderConfig
     ):
-        self._use_x_auth = False
+        self._auth_token: str | None = None
         super().__init__(context_manager, provider_id, config)
 
     def dispose(self):
@@ -113,22 +102,7 @@ class CentreonProvider(BaseProvider):
             **self.config.authentication
         )
 
-        if (
-            self.authentication_config.api_token is None
-            and (
-                self.authentication_config.username is None
-                or self.authentication_config.password is None
-            )
-        ):
-            raise ProviderException(
-                "Either api_token or username/password must be provided"
-            )
-
-        if (
-            self.authentication_config.api_token is None
-            and self.authentication_config.username is not None
-        ):
-            self.__authenticate()
+        self.__authenticate()
 
     def __get_url(self, path: str):
         """Build API V2 url.
@@ -181,8 +155,7 @@ class CentreonProvider(BaseProvider):
                 token = response.text.strip().strip('"')
             if not token:
                 raise ProviderException("Missing auth token in Centreon response")
-            self.authentication_config.api_token = token
-            self._use_x_auth = True
+            self._auth_token = token
         except Exception as e:
             raise ProviderException(
                 f"Error authenticating with Centreon: {e}"
@@ -190,10 +163,8 @@ class CentreonProvider(BaseProvider):
 
     def __get_headers(self):
         headers = {"Content-Type": "application/json"}
-        if self._use_x_auth:
-            headers["X-AUTH-TOKEN"] = self.authentication_config.api_token
-        else:
-            headers["Authorization"] = f"Bearer {self.authentication_config.api_token}"
+        if self._auth_token:
+            headers["X-AUTH-TOKEN"] = self._auth_token
         return headers
 
     @staticmethod
@@ -439,7 +410,8 @@ if __name__ == "__main__":
     import os
 
     host_url = os.environ.get("CENTREON_HOST_URL")
-    api_token = os.environ.get("CENTREON_API_TOKEN")
+    username = os.environ.get("CENTREON_USERNAME")
+    password = os.environ.get("CENTREON_PASSWORD")
 
     if host_url is None:
         raise ProviderException("CENTREON_HOST_URL is not set")
@@ -448,7 +420,8 @@ if __name__ == "__main__":
         description="Centreon Provider",
         authentication={
             "host_url": host_url,
-            "api_token": api_token,
+            "username": username,
+            "password": password,
         },
     )
 
