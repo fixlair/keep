@@ -293,6 +293,115 @@ class TestCentreonProvider(unittest.TestCase):
             headers = provider._CentreonProvider__get_headers()
             self.assertEqual(headers.get("X-AUTH-TOKEN"), "tok")
 
+    def test_get_alert_status_service(self):
+        from unittest.mock import patch
+
+        from keep.contextmanager.contextmanager import ContextManager
+        from keep.providers.models.provider_config import ProviderConfig
+
+        context_manager = ContextManager(tenant_id="test")
+
+        with patch(
+            "keep.providers.centreon_provider.centreon_provider.requests.post"
+        ) as mock_post:
+            mock_post.return_value.ok = True
+            mock_post.return_value.json.return_value = {"auth_token": "tok"}
+
+            provider = CentreonProvider(
+                context_manager,
+                provider_id="centreon",
+                config=ProviderConfig(
+                    description="centreon",
+                    authentication={
+                        "host_url": "http://localhost",
+                        "username": "u",
+                        "password": "p",
+                    },
+                ),
+            )
+
+        service_resp = {
+            "id": 5,
+            "name": "Ping",
+            "description": "Ping",
+            "state": 0,
+            "acknowledged": False,
+            "max_check_attempts": 3,
+            "last_check": "2019-08-24T14:15:22Z",
+            "output": "OK",
+        }
+
+        with patch(
+            "keep.providers.centreon_provider.centreon_provider.requests.get"
+        ) as mock_get:
+            mock_get.return_value.ok = True
+            mock_get.return_value.json.return_value = service_resp
+
+            alert = provider.get_alert_status(host_id="12", service_id="5")
+            called_url = mock_get.call_args[0][0]
+
+            expected_url = (
+                "http://localhost/centreon/api/latest/monitoring/hosts/12/services/5"
+            )
+            self.assertEqual(called_url, expected_url)
+            self.assertEqual(alert.status, AlertStatus.RESOLVED)
+            self.assertEqual(alert.id, "5")
+
+    def test_get_alert_status_host(self):
+        from unittest.mock import patch
+
+        from keep.contextmanager.contextmanager import ContextManager
+        from keep.providers.models.provider_config import ProviderConfig
+
+        context_manager = ContextManager(tenant_id="test")
+
+        with patch(
+            "keep.providers.centreon_provider.centreon_provider.requests.post"
+        ) as mock_post:
+            mock_post.return_value.ok = True
+            mock_post.return_value.json.return_value = {"auth_token": "tok"}
+
+            provider = CentreonProvider(
+                context_manager,
+                provider_id="centreon",
+                config=ProviderConfig(
+                    description="centreon",
+                    authentication={
+                        "host_url": "http://localhost",
+                        "username": "u",
+                        "password": "p",
+                    },
+                ),
+            )
+
+        host_resp = {
+            "id": 12,
+            "name": "Central",
+            "address": "127.0.0.1",
+            "output": "OK",
+            "state": 0,
+            "instance_name": "inst1",
+            "acknowledged": False,
+            "max_check_attempts": 3,
+            "last_check": "2019-08-24T14:15:22Z",
+        }
+
+        with patch(
+            "keep.providers.centreon_provider.centreon_provider.requests.get"
+        ) as mock_get:
+            mock_get.return_value.ok = True
+            mock_get.return_value.json.return_value = host_resp
+
+            alert = provider.get_alert_status(host_id="12")
+            called_url = mock_get.call_args[0][0]
+
+            expected_url = (
+                "http://localhost/centreon/api/latest/monitoring/hosts/12"
+            )
+            self.assertEqual(called_url, expected_url)
+            self.assertEqual(alert.status, AlertStatus.RESOLVED)
+            self.assertEqual(alert.id, 12)
+
 
 if __name__ == "__main__":
     unittest.main()

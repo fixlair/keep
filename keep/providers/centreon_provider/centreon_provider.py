@@ -63,7 +63,13 @@ class CentreonProvider(BaseProvider):
             func_name="acknowledge_alert",
             scopes=["authenticated"],
             type="action",
-        )
+        ),
+        ProviderMethod(
+            name="Get alert status",
+            func_name="get_alert_status",
+            scopes=["authenticated"],
+            type="view",
+        ),
     ]
 
     """
@@ -448,6 +454,53 @@ class CentreonProvider(BaseProvider):
             raise ProviderException(
                 f"Error acknowledging alert in Centreon: {e}"
             ) from e
+
+    def __parse_timestamp(self, value: typing.Any) -> float:
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            try:
+                return datetime.datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+            except ValueError:
+                try:
+                    return float(value)
+                except ValueError:
+                    pass
+        return datetime.datetime.now(datetime.timezone.utc).timestamp()
+
+    def get_alert_status(self, host_id: str, service_id: str | None = None) -> AlertDto:
+        """Get the current status of a host or service."""
+        try:
+            if service_id:
+                path = f"monitoring/hosts/{host_id}/services/{service_id}"
+            else:
+                path = f"monitoring/hosts/{host_id}"
+
+            response = requests.get(self.__get_url(path), headers=self.__get_headers())
+
+            if not response.ok:
+                self.logger.error("Failed to get alert status from Centreon: %s", response.text)
+                raise ProviderException("Failed to get alert status from Centreon")
+
+            data = response.json()
+            if isinstance(data, dict):
+                data = data.get("result") or data.get("data") or data
+
+            if service_id:
+                if isinstance(data, list):
+                    data = data[0] if data else {}
+                if "last_check" in data:
+                    data["last_check"] = self.__parse_timestamp(data["last_check"])
+                return self._format_service_alert(data, self)
+            else:
+                if isinstance(data, list):
+                    data = data[0] if data else {}
+                if "last_check" in data:
+                    data["last_check"] = self.__parse_timestamp(data["last_check"])
+                return self._format_host_alert(data, self)
+        except Exception as e:
+            self.logger.error("Error getting alert status from Centreon: %s", e)
+            raise ProviderException(f"Error getting alert status from Centreon: {e}") from e
 
     def _notify(
         self,
