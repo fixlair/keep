@@ -249,15 +249,51 @@ class CentreonProvider(BaseProvider):
             source=["centreon"],
         )
 
-    def __get_paginated_data(self, path: str) -> list[dict]:
-        """Retrieve all pages for the given API path."""
+    @staticmethod
+    def _format_resource_alert(
+        resource: dict, provider_instance: BaseProvider | None = None
+    ) -> AlertDto:
+        status = resource.get("status", {})
+        status_name = status.get("name", "").upper()
+        status_code = status.get("code")
+
+        return AlertDto(
+            id=str(resource.get("service_id") or resource.get("host_id") or resource.get("id")),
+            host_id=resource.get("host_id"),
+            service_id=resource.get("service_id"),
+            name=resource.get("name"),
+            description=resource.get("information"),
+            status=CentreonProvider.STATUS_MAP.get(status_code, AlertStatus.FIRING)
+            if status_code is not None
+            else (AlertStatus.RESOLVED if status_name in ("OK", "UP") else AlertStatus.FIRING),
+            severity=CentreonProvider.SEVERITY_MAP.get(status_name, AlertSeverity.INFO),
+            acknowledged=resource.get("is_acknowledged"),
+            lastReceived=resource.get("last_status_change")
+            or datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            source=["centreon"],
+        )
+
+    def __get_paginated_data(self, path: str, params: dict | None = None) -> list[dict]:
+        """Retrieve all pages for the given API path.
+
+        Parameters
+        ----------
+        path: str
+            API path to query (without the leading host).
+        params: dict | None
+            Additional query parameters to include in the request.
+        """
         page = 1
         limit = 50
         results: list[dict] = []
 
+        params = params or {}
+
         while True:
-            url = self.__get_url(f"{path}?page={page}&limit={limit}")
-            response = requests.get(url, headers=self.__get_headers())
+            query = params.copy()
+            query.update({"page": page, "limit": limit})
+            url = self.__get_url(path)
+            response = requests.get(url, headers=self.__get_headers(), params=query)
 
             if not response.ok:
                 self.logger.error(
@@ -348,6 +384,24 @@ class CentreonProvider(BaseProvider):
                 f"Error getting service status from Centreon: {e}"
             ) from e
 
+    def __get_resource_status(self) -> list[AlertDto]:
+        """Retrieve alerts from the unified ``monitoring/ressource`` endpoint."""
+
+        params = {
+            "status_types": '["hard"]',
+            "statuses": '["warning","down","unreachable","critical","unknown"]',
+            "states": '["unhandled"]',
+        }
+
+        try:
+            resources = self.__get_paginated_data("monitoring/ressource", params=params)
+            return [self._format_resource_alert(res, self) for res in resources]
+        except Exception as e:
+            self.logger.error("Error getting resource status from Centreon: %s", e)
+            raise ProviderException(
+                f"Error getting resource status from Centreon: {e}"
+            ) from e
+
     def acknowledge_alert(
         self,
         host_id: str,
@@ -416,22 +470,12 @@ class CentreonProvider(BaseProvider):
         raise NotImplementedError(f"Action {action} is not implemented")
 
     def _get_alerts(self) -> list[AlertDto]:
-        alerts = []
         try:
-            self.logger.info("Collecting alerts (host status) from Centreon")
-            host_status_alerts = self.__get_host_status()
-            alerts.extend(host_status_alerts)
+            self.logger.info("Collecting alerts from Centreon resources")
+            return self.__get_resource_status()
         except Exception as e:
-            self.logger.error("Error getting host status from Centreon: %s", e)
-
-        try:
-            self.logger.info("Collecting alerts (service status) from Centreon")
-            service_status_alerts = self.__get_service_status()
-            alerts.extend(service_status_alerts)
-        except Exception as e:
-            self.logger.error("Error getting service status from Centreon: %s", e)
-
-        return alerts
+            self.logger.error("Error getting resource status from Centreon: %s", e)
+            return []
 
 
 if __name__ == "__main__":
