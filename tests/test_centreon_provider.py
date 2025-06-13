@@ -37,6 +37,22 @@ class TestCentreonProvider(unittest.TestCase):
         self.assertEqual(alert.status, AlertStatus.FIRING)
         self.assertEqual(alert.severity, AlertSeverity.CRITICAL)
 
+    def test_format_service_alert_with_id(self):
+        service = {
+            "id": "3",
+            "host_id": "1",
+            "name": "HTTPS",
+            "description": "https check",
+            "state": 1,
+            "output": "WARNING: slow",
+            "acknowledged": True,
+            "max_check_attempts": 5,
+            "last_check": 1700000001,
+        }
+        alert = CentreonProvider._format_service_alert(service)
+        self.assertEqual(alert.id, "3")
+        self.assertEqual(alert.status, AlertStatus.FIRING)
+
     def test_get_paginated_data(self):
         from unittest.mock import patch
 

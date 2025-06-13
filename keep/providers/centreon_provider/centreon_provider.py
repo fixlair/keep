@@ -231,8 +231,8 @@ class CentreonProvider(BaseProvider):
         service: dict, provider_instance: BaseProvider | None = None
     ) -> AlertDto:
         return AlertDto(
-            id=service["service_id"],
-            host_id=service["host_id"],
+            id=str(service.get("service_id") or service.get("id")),
+            host_id=service.get("host_id"),
             name=service["name"],
             description=service["description"],
             status=CentreonProvider.STATUS_MAP.get(
