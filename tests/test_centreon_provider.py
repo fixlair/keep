@@ -113,6 +113,55 @@ class TestCentreonProvider(unittest.TestCase):
             data = provider._CentreonProvider__get_paginated_data("monitoring/hosts")
             self.assertEqual(len(data), 60)
 
+    def test_get_resource_status_params(self):
+        """Ensure _get_alerts queries the correct resource endpoint."""
+        from unittest.mock import patch
+
+        from keep.contextmanager.contextmanager import ContextManager
+        from keep.providers.models.provider_config import ProviderConfig
+
+        context_manager = ContextManager(tenant_id="test")
+        with patch(
+            "keep.providers.centreon_provider.centreon_provider.requests.post"
+        ) as mock_post:
+            mock_post.return_value.ok = True
+            mock_post.return_value.json.return_value = {"auth_token": "tok"}
+
+            provider = CentreonProvider(
+                context_manager,
+                provider_id="centreon",
+                config=ProviderConfig(
+                    description="centreon",
+                    authentication={
+                        "host_url": "http://localhost",
+                        "username": "u",
+                        "password": "p",
+                    },
+                ),
+            )
+
+        class MockResp:
+            def __init__(self):
+                self.ok = True
+                self.text = "{}"
+
+            def json(self):
+                return {"result": [], "meta": {"page": 1, "limit": 50, "total": 0}}
+
+        with patch(
+            "keep.providers.centreon_provider.centreon_provider.requests.get"
+        ) as mock_get:
+            mock_get.return_value = MockResp()
+            provider._get_alerts()
+            called_url = mock_get.call_args[0][0]
+            params = mock_get.call_args[1]["params"]
+
+            expected_url = (
+                "http://localhost/centreon/api/latest/monitoring/ressource"
+            )
+            assert called_url == expected_url
+            assert params["states"] == '["unhandled"]'
+
     def test_acknowledge_alert_service_url(self):
         from unittest.mock import patch
 
