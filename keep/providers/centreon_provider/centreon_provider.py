@@ -264,14 +264,24 @@ class CentreonProvider(BaseProvider):
         status_code = status.get("code")
 
         return AlertDto(
-            id=str(resource.get("service_id") or resource.get("host_id") or resource.get("id")),
+            id=str(
+                resource.get("service_id")
+                or resource.get("host_id")
+                or resource.get("id")
+            ),
             host_id=resource.get("host_id"),
             service_id=resource.get("service_id"),
             name=resource.get("name"),
             description=resource.get("information"),
-            status=CentreonProvider.STATUS_MAP.get(status_code, AlertStatus.FIRING)
-            if status_code is not None
-            else (AlertStatus.RESOLVED if status_name in ("OK", "UP") else AlertStatus.FIRING),
+            status=(
+                CentreonProvider.STATUS_MAP.get(status_code, AlertStatus.FIRING)
+                if status_code is not None
+                else (
+                    AlertStatus.RESOLVED
+                    if status_name in ("OK", "UP")
+                    else AlertStatus.FIRING
+                )
+            ),
             severity=CentreonProvider.SEVERITY_MAP.get(status_name, AlertSeverity.INFO),
             acknowledged=resource.get("is_acknowledged"),
             lastReceived=resource.get("last_status_change")
@@ -391,7 +401,7 @@ class CentreonProvider(BaseProvider):
             ) from e
 
     def __get_resource_status(self) -> list[AlertDto]:
-        """Retrieve alerts from the unified ``monitoring/ressource`` endpoint."""
+        """Retrieve alerts from the unified ``monitoring/resources`` endpoint."""
 
         params = {
             "status_types": '["hard"]',
@@ -400,7 +410,7 @@ class CentreonProvider(BaseProvider):
         }
 
         try:
-            resources = self.__get_paginated_data("monitoring/ressource", params=params)
+            resources = self.__get_paginated_data("monitoring/resources", params=params)
             return [self._format_resource_alert(res, self) for res in resources]
         except Exception as e:
             self.logger.error("Error getting resource status from Centreon: %s", e)

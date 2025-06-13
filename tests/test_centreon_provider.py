@@ -172,9 +172,7 @@ class TestCentreonProvider(unittest.TestCase):
             called_url = mock_get.call_args[0][0]
             params = mock_get.call_args[1]["params"]
 
-            expected_url = (
-                "http://localhost/centreon/api/latest/monitoring/ressource"
-            )
+            expected_url = "http://localhost/centreon/api/latest/monitoring/resources"
             assert called_url == expected_url
             assert params["states"] == '["unhandled"]'
 
