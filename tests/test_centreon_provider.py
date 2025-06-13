@@ -131,6 +131,50 @@ class TestCentreonProvider(unittest.TestCase):
             )
             self.assertEqual(called_url, expected_url)
 
+    def test_acknowledge_alert_payload(self):
+        from unittest.mock import patch
+        from keep.contextmanager.contextmanager import ContextManager
+        from keep.providers.models.provider_config import ProviderConfig
+
+        context_manager = ContextManager(tenant_id="test")
+        with patch(
+            "keep.providers.centreon_provider.centreon_provider.requests.post"
+        ) as mock_post:
+            mock_post.return_value.ok = True
+            mock_post.return_value.json.return_value = {"auth_token": "tok"}
+
+            provider = CentreonProvider(
+                context_manager,
+                provider_id="centreon",
+                config=ProviderConfig(
+                    description="centreon",
+                    authentication={
+                        "host_url": "http://localhost",
+                        "username": "u",
+                        "password": "p",
+                    },
+                ),
+            )
+
+        with patch(
+            "keep.providers.centreon_provider.centreon_provider.requests.post"
+        ) as mock_post:
+            mock_post.return_value.ok = True
+            mock_post.return_value.text = ""
+
+            provider.acknowledge_alert(host_id="1", service_id="2")
+            called_payload = mock_post.call_args.kwargs["json"]
+
+            expected_payload = {
+                "author": "keep",
+                "comment": "Acknowledged via Keep",
+                "is_notify_contacts": False,
+                "is_persistent_comment": True,
+                "is_sticky": True,
+            }
+
+            self.assertEqual(called_payload, expected_payload)
+
     def test_authenticate_with_username_password(self):
         from unittest.mock import patch
         from keep.contextmanager.contextmanager import ContextManager
