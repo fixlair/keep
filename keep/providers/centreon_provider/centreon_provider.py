@@ -405,7 +405,9 @@ class CentreonProvider(BaseProvider):
 
         params = {
             "status_types": '["hard"]',
-            "statuses": '["warning","down","unreachable","critical","unknown"]',
+            # Centreon expects status values in upper case
+            # see https://docs.centreon.com/api/
+            "status": '["WARNING","DOWN","UNREACHABLE","CRITICAL","UNKNOWN"]',
             "states": '["unhandled"]',
         }
 
