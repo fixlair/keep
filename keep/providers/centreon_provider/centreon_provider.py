@@ -129,6 +129,45 @@ class CentreonProvider(BaseProvider):
         return f"{base}/api/index.php?action=authenticate"
 
     def __authenticate(self) -> None:
+        """Authenticate using the modern login endpoint and fallback to legacy."""
+
+        # First try the modern ``/api/latest/login`` endpoint
+        url = self.__get_url("login")
+        payload = {
+            "security": {
+                "credentials": {
+                    "login": self.authentication_config.username,
+                    "password": self.authentication_config.password,
+                }
+            }
+        }
+
+        try:
+            response = requests.post(url, json=payload)
+            if response.ok:
+                data = {}
+                try:
+                    data = response.json()
+                except Exception:
+                    pass
+                token = (
+                    data.get("security", {}).get("token")
+                    or data.get("token")
+                    or data.get("authToken")
+                    or data.get("auth_token")
+                    or data.get("security_token")
+                )
+                if not token:
+                    token = response.text.strip().strip('"')
+                if not token:
+                    raise ProviderException("Missing auth token in Centreon response")
+                self._auth_token = token
+                return
+        except Exception:
+            # fall back to legacy authentication
+            pass
+
+        # Fallback to legacy ``/api/index.php?action=authenticate`` endpoint
         url = self.__get_login_url()
         payload = {
             "username": self.authentication_config.username,
