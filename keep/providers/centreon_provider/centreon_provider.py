@@ -48,6 +48,14 @@ class CentreonProviderAuthConfig:
         },
     )
 
+    verify: bool = dataclasses.field(
+        metadata={
+            "description": "Verify SSL certificates",
+            "sensitive": False,
+        },
+        default=True,
+    )
+
 
 class CentreonProvider(BaseProvider):
     PROVIDER_DISPLAY_NAME = "Centreon"
@@ -149,7 +157,11 @@ class CentreonProvider(BaseProvider):
         }
 
         try:
-            response = requests.post(url, json=payload)
+            response = requests.post(
+                url,
+                json=payload,
+                verify=self.authentication_config.verify,
+            )
             if response.ok:
                 data = {}
                 try:
@@ -180,7 +192,11 @@ class CentreonProvider(BaseProvider):
             "password": self.authentication_config.password,
         }
         try:
-            response = requests.post(url, json=payload)
+            response = requests.post(
+                url,
+                json=payload,
+                verify=self.authentication_config.verify,
+            )
             if not response.ok:
                 raise ProviderException(
                     f"Failed to authenticate with Centreon: {response.status_code} {response.text}"
@@ -309,7 +325,12 @@ class CentreonProvider(BaseProvider):
             query = params.copy()
             query.update({"page": page, "limit": limit})
             url = self.__get_url(path)
-            response = requests.get(url, headers=self.__get_headers(), params=query)
+            response = requests.get(
+                url,
+                headers=self.__get_headers(),
+                params=query,
+                verify=self.authentication_config.verify,
+            )
 
             if not response.ok:
                 self.logger.error(
@@ -362,6 +383,7 @@ class CentreonProvider(BaseProvider):
             response = requests.get(
                 self.__get_url("monitoring/hosts?page=1&limit=1"),
                 headers=self.__get_headers(),
+                verify=self.authentication_config.verify,
             )
             if response.ok:
                 scopes = {"authenticated": True}
@@ -447,6 +469,7 @@ class CentreonProvider(BaseProvider):
                 self.__get_url(path),
                 headers=self.__get_headers(),
                 json=payload,
+                verify=self.authentication_config.verify,
             )
 
             if not response.ok:
@@ -488,7 +511,11 @@ class CentreonProvider(BaseProvider):
             else:
                 path = f"monitoring/hosts/{host_id}"
 
-            response = requests.get(self.__get_url(path), headers=self.__get_headers())
+            response = requests.get(
+                self.__get_url(path),
+                headers=self.__get_headers(),
+                verify=self.authentication_config.verify,
+            )
 
             if not response.ok:
                 self.logger.error("Failed to get alert status from Centreon: %s", response.text)

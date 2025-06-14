@@ -4,9 +4,9 @@ Do not edit it manually, as it will be overwritten */}
 ## Authentication
 This provider requires authentication.
 - **host_url**: Centreon Host URL (required: True, sensitive: False)
-- **api_token**: Centreon API Token (required: False, sensitive: True)
-- **username**: Centreon username (required: False, sensitive: False)
-- **password**: Centreon password (required: False, sensitive: True)
+- **username**: Centreon username (required: True, sensitive: False)
+- **password**: Centreon password (required: True, sensitive: True)
+- **verify**: Verify SSL certificates (required: False, sensitive: False, default: True)
 
 Certain scopes may be required to perform specific actions or queries via the provider. Below is a summary of relevant scopes and their use cases:
 - **authenticated**: User is authenticated  
