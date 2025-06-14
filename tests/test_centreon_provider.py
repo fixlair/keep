@@ -52,6 +52,38 @@ class TestCentreonProvider(unittest.TestCase):
         self.assertEqual(alert.status, AlertStatus.FIRING)
         self.assertEqual(alert.severity, AlertSeverity.CRITICAL)
 
+    def test_format_service_alert_with_host_info(self):
+        service = {
+            "service_id": "2",
+            "host_id": "1",
+            "name": "HTTP",
+            "description": "http check",
+            "state": 2,
+            "output": "CRITICAL: down",
+            "acknowledged": False,
+            "max_check_attempts": 3,
+            "last_check": 1700000000,
+        }
+
+        class DummyProvider:
+            def __init__(self):
+                import logging
+
+                self.logger = logging.getLogger("dummy")
+
+            def _CentreonProvider__get_host_configuration(self, host_id):
+                return {
+                    "name": "srv1",
+                    "alias": "server1",
+                    "groups": [{"id": 1, "name": "grp1"}],
+                }
+
+        alert = CentreonProvider._format_service_alert(service, DummyProvider())
+
+        self.assertEqual(alert.name, "srv1 - HTTP")
+        self.assertEqual(alert.alias, "server1")
+        self.assertEqual(alert.groups, [{"id": 1, "name": "grp1"}])
+
     def test_format_service_alert_unknown(self):
         service = {
             "service_id": "4",
@@ -82,6 +114,36 @@ class TestCentreonProvider(unittest.TestCase):
         alert = CentreonProvider._format_service_alert(service)
         self.assertEqual(alert.id, "3")
         self.assertEqual(alert.status, AlertStatus.FIRING)
+
+    def test_format_resource_alert_with_host_info(self):
+        resource = {
+            "host_id": "1",
+            "service_id": "2",
+            "name": "Ping",
+            "information": "CRITICAL",
+            "status": {"name": "CRITICAL", "code": 2},
+            "is_acknowledged": False,
+            "last_status_change": "2019-08-24T14:15:22Z",
+        }
+
+        class DummyProvider:
+            def __init__(self):
+                import logging
+
+                self.logger = logging.getLogger("dummy")
+
+            def _CentreonProvider__get_host_configuration(self, host_id):
+                return {
+                    "name": "srv1",
+                    "alias": "server1",
+                    "groups": [{"id": 1, "name": "grp1"}],
+                }
+
+        alert = CentreonProvider._format_resource_alert(resource, DummyProvider())
+
+        self.assertEqual(alert.name, "srv1 - Ping")
+        self.assertEqual(alert.alias, "server1")
+        self.assertEqual(alert.groups, [{"id": 1, "name": "grp1"}])
 
     def test_get_paginated_data(self):
         from unittest.mock import patch
@@ -205,7 +267,10 @@ class TestCentreonProvider(unittest.TestCase):
             expected_url = "http://localhost/centreon/api/latest/monitoring/resources"
             assert called_url == expected_url
             assert params["states"] == '["unhandled_problems"]'
-            assert params["status"] == '["WARNING","DOWN","UNREACHABLE","CRITICAL","UNKNOWN"]'
+            assert (
+                params["status"]
+                == '["WARNING","DOWN","UNREACHABLE","CRITICAL","UNKNOWN"]'
+            )
 
     def test_acknowledge_alert_service_url(self):
         from unittest.mock import patch
@@ -424,9 +489,7 @@ class TestCentreonProvider(unittest.TestCase):
             alert = provider.get_alert_status(host_id="12")
             called_url = mock_get.call_args[0][0]
 
-            expected_url = (
-                "http://localhost/centreon/api/latest/monitoring/hosts/12"
-            )
+            expected_url = "http://localhost/centreon/api/latest/monitoring/hosts/12"
             self.assertEqual(called_url, expected_url)
             self.assertEqual(alert.status, AlertStatus.RESOLVED)
             self.assertEqual(alert.id, 12)
