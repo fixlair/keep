@@ -387,7 +387,7 @@ class CentreonProvider(BaseProvider):
             # Centreon expects status values in upper case
             # see https://docs.centreon.com/api/
             "status": '["WARNING","DOWN","UNREACHABLE","CRITICAL","UNKNOWN"]',
-            "states": '["unhandled"]',
+            "states": '["unhandled_problems"]',
         }
 
         try:
