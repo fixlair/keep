@@ -200,6 +200,17 @@ class CentreonProvider(BaseProvider):
             headers["X-AUTH-TOKEN"] = self._auth_token
         return headers
 
+    def __get_host_configuration(self, host_id: str) -> dict:
+        """Retrieve host configuration details for a given host id."""
+
+        try:
+            params = {"search": f'{{"id": {host_id}}}', "limit": 1}
+            hosts = self.__get_paginated_data("configuration/hosts", params=params)
+            return hosts[0] if hosts else {}
+        except Exception as e:
+            self.logger.error("Failed to get host configuration from Centreon: %s", e)
+            return {}
+
     @staticmethod
     def _format_host_alert(
         host: dict, provider_instance: BaseProvider | None = None
@@ -226,10 +237,32 @@ class CentreonProvider(BaseProvider):
     def _format_service_alert(
         service: dict, provider_instance: BaseProvider | None = None
     ) -> AlertDto:
+        host_name = None
+        alias = None
+        groups = None
+        if provider_instance and service.get("host_id"):
+            try:
+                host_details = (
+                    provider_instance._CentreonProvider__get_host_configuration(
+                        service["host_id"]
+                    )
+                )
+                host_name = host_details.get("name")
+                alias = host_details.get("alias")
+                groups = host_details.get("groups")
+            except Exception as e:
+                provider_instance.logger.error(
+                    "Failed to fetch host configuration: %s", e
+                )
+
+        alert_name = (
+            f"{host_name} - {service['name']}" if host_name else service["name"]
+        )
+
         return AlertDto(
             id=str(service.get("service_id") or service.get("id")),
             host_id=service.get("host_id"),
-            name=service["name"],
+            name=alert_name,
             description=service["description"],
             status=CentreonProvider.STATUS_MAP.get(
                 service["state"], AlertStatus.FIRING
@@ -243,6 +276,8 @@ class CentreonProvider(BaseProvider):
                 service["last_check"]
             ).isoformat(),
             source=["centreon"],
+            alias=alias,
+            groups=groups,
         )
 
     @staticmethod
@@ -253,6 +288,30 @@ class CentreonProvider(BaseProvider):
         status_name = status.get("name", "").upper()
         status_code = status.get("code")
 
+        host_name = None
+        alias = None
+        groups = None
+        if provider_instance and resource.get("host_id"):
+            try:
+                host_details = (
+                    provider_instance._CentreonProvider__get_host_configuration(
+                        resource.get("host_id")
+                    )
+                )
+                host_name = host_details.get("name")
+                alias = host_details.get("alias")
+                groups = host_details.get("groups")
+            except Exception as e:
+                provider_instance.logger.error(
+                    "Failed to fetch host configuration: %s", e
+                )
+
+        alert_name = (
+            f"{host_name} - {resource.get('name')}"
+            if host_name and resource.get("service_id")
+            else resource.get("name")
+        )
+
         return AlertDto(
             id=str(
                 resource.get("service_id")
@@ -261,7 +320,7 @@ class CentreonProvider(BaseProvider):
             ),
             host_id=resource.get("host_id"),
             service_id=resource.get("service_id"),
-            name=resource.get("name"),
+            name=alert_name,
             description=resource.get("information"),
             status=(
                 CentreonProvider.STATUS_MAP.get(status_code, AlertStatus.FIRING)
@@ -277,6 +336,8 @@ class CentreonProvider(BaseProvider):
             lastReceived=resource.get("last_status_change")
             or datetime.datetime.now(datetime.timezone.utc).isoformat(),
             source=["centreon"],
+            alias=alias,
+            groups=groups,
         )
 
     def __get_paginated_data(self, path: str, params: dict | None = None) -> list[dict]:
@@ -469,7 +530,9 @@ class CentreonProvider(BaseProvider):
             return float(value)
         if isinstance(value, str):
             try:
-                return datetime.datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+                return datetime.datetime.fromisoformat(
+                    value.replace("Z", "+00:00")
+                ).timestamp()
             except ValueError:
                 try:
                     return float(value)
@@ -492,7 +555,9 @@ class CentreonProvider(BaseProvider):
             )
 
             if not response.ok:
-                self.logger.error("Failed to get alert status from Centreon: %s", response.text)
+                self.logger.error(
+                    "Failed to get alert status from Centreon: %s", response.text
+                )
                 raise ProviderException("Failed to get alert status from Centreon")
 
             data = response.json()
@@ -513,7 +578,9 @@ class CentreonProvider(BaseProvider):
                 return self._format_host_alert(data, self)
         except Exception as e:
             self.logger.error("Error getting alert status from Centreon: %s", e)
-            raise ProviderException(f"Error getting alert status from Centreon: {e}") from e
+            raise ProviderException(
+                f"Error getting alert status from Centreon: {e}"
+            ) from e
 
     def _notify(
         self,
