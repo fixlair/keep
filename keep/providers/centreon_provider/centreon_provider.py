@@ -81,14 +81,31 @@ class CentreonProvider(BaseProvider):
     ]
 
     """
-  Centreon only supports the following host state (UP = 0, DOWN = 2, UNREA = 3)
-  https://docs.centreon.com/docs/api/rest-api-v1/#realtime-information
-  """
+    Mapping of Centreon host/service state codes to Keep alert statuses.
+
+    According to the Centreon API documentation the following status codes are
+    used:
+
+    Host status codes:
+        * ``0`` - UP
+        * ``1`` - DOWN
+        * ``2`` - UNREACHABLE
+
+    Service status codes:
+        * ``0`` - OK
+        * ``1`` - WARNING
+        * ``2`` - CRITICAL
+        * ``3`` - UNKNOWN
+
+    Any non-zero state represents a problem so it maps to ``AlertStatus.FIRING``
+    while ``0`` means the resource is healthy and maps to ``AlertStatus.RESOLVED``.
+    """
 
     STATUS_MAP = {
+        0: AlertStatus.RESOLVED,
+        1: AlertStatus.FIRING,
         2: AlertStatus.FIRING,
         3: AlertStatus.FIRING,
-        0: AlertStatus.RESOLVED,
     }
 
     SEVERITY_MAP = {

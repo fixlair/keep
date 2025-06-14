@@ -21,6 +21,21 @@ class TestCentreonProvider(unittest.TestCase):
         self.assertEqual(alert.status, AlertStatus.RESOLVED)
         self.assertEqual(alert.severity, AlertSeverity.LOW)
 
+    def test_format_host_alert_down(self):
+        host = {
+            "id": "2",
+            "name": "db2",
+            "address": "10.0.0.2",
+            "output": "DOWN",
+            "state": 1,
+            "instance_name": "inst2",
+            "acknowledged": False,
+            "max_check_attempts": 3,
+            "last_check": 1700000000,
+        }
+        alert = CentreonProvider._format_host_alert(host)
+        self.assertEqual(alert.status, AlertStatus.FIRING)
+
     def test_format_service_alert(self):
         service = {
             "service_id": "2",
@@ -36,6 +51,21 @@ class TestCentreonProvider(unittest.TestCase):
         alert = CentreonProvider._format_service_alert(service)
         self.assertEqual(alert.status, AlertStatus.FIRING)
         self.assertEqual(alert.severity, AlertSeverity.CRITICAL)
+
+    def test_format_service_alert_unknown(self):
+        service = {
+            "service_id": "4",
+            "host_id": "1",
+            "name": "Disk",
+            "description": "disk check",
+            "state": 3,
+            "output": "UNKNOWN: ?",
+            "acknowledged": False,
+            "max_check_attempts": 3,
+            "last_check": 1700000000,
+        }
+        alert = CentreonProvider._format_service_alert(service)
+        self.assertEqual(alert.status, AlertStatus.FIRING)
 
     def test_format_service_alert_with_id(self):
         service = {
