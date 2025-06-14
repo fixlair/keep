@@ -174,7 +174,7 @@ class TestCentreonProvider(unittest.TestCase):
 
             expected_url = "http://localhost/centreon/api/latest/monitoring/resources"
             assert called_url == expected_url
-            assert params["states"] == '["unhandled"]'
+            assert params["states"] == '["unhandled_problems"]'
             assert params["status"] == '["WARNING","DOWN","UNREACHABLE","CRITICAL","UNKNOWN"]'
 
     def test_acknowledge_alert_service_url(self):
