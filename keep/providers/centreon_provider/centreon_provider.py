@@ -134,18 +134,10 @@ class CentreonProvider(BaseProvider):
 
         return base + path.lstrip("/")
 
-    def __get_login_url(self) -> str:
-        host = self.authentication_config.host_url.rstrip("/")
-        if host.endswith("/centreon"):
-            base = host
-        else:
-            base = f"{host}/centreon"
-        return f"{base}/api/index.php?action=authenticate"
-
     def __authenticate(self) -> None:
-        """Authenticate using the modern login endpoint and fallback to legacy."""
+        """Authenticate using the ``/api/latest/login`` endpoint."""
 
-        # First try the modern ``/api/latest/login`` endpoint
+        # Use the ``/api/latest/login`` endpoint
         url = self.__get_url("login")
         payload = {
             "security": {
@@ -156,69 +148,34 @@ class CentreonProvider(BaseProvider):
             }
         }
 
-        try:
-            response = requests.post(
-                url,
-                json=payload,
-                verify=self.authentication_config.verify,
+        response = requests.post(
+            url,
+            json=payload,
+            verify=self.authentication_config.verify,
+        )
+        if not response.ok:
+            raise ProviderException(
+                f"Failed to authenticate with Centreon: {response.status_code} {response.text}"
             )
-            if response.ok:
-                data = {}
-                try:
-                    data = response.json()
-                except Exception:
-                    pass
-                token = (
-                    data.get("security", {}).get("token")
-                    or data.get("token")
-                    or data.get("authToken")
-                    or data.get("auth_token")
-                    or data.get("security_token")
-                )
-                if not token:
-                    token = response.text.strip().strip('"')
-                if not token:
-                    raise ProviderException("Missing auth token in Centreon response")
-                self._auth_token = token
-                return
+
+        data = {}
+        try:
+            data = response.json()
         except Exception:
-            # fall back to legacy authentication
             pass
 
-        # Fallback to legacy ``/api/index.php?action=authenticate`` endpoint
-        url = self.__get_login_url()
-        payload = {
-            "username": self.authentication_config.username,
-            "password": self.authentication_config.password,
-        }
-        try:
-            response = requests.post(
-                url,
-                json=payload,
-                verify=self.authentication_config.verify,
-            )
-            if not response.ok:
-                raise ProviderException(
-                    f"Failed to authenticate with Centreon: {response.status_code} {response.text}"
-                )
-            data = {}
-            try:
-                data = response.json()
-            except Exception:
-                pass
-            token = (
-                data.get("authToken")
-                or data.get("auth_token")
-                or data.get("security_token")
-                or data.get("token")
-            )
-            if not token:
-                token = response.text.strip().strip('"')
-            if not token:
-                raise ProviderException("Missing auth token in Centreon response")
-            self._auth_token = token
-        except Exception as e:
-            raise ProviderException(f"Error authenticating with Centreon: {e}") from e
+        token = (
+            data.get("security", {}).get("token")
+            or data.get("token")
+            or data.get("authToken")
+            or data.get("auth_token")
+            or data.get("security_token")
+        )
+        if not token:
+            token = response.text.strip().strip('"')
+        if not token:
+            raise ProviderException("Missing auth token in Centreon response")
+        self._auth_token = token
 
     def __get_headers(self):
         headers = {"Content-Type": "application/json"}
